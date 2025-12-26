@@ -14,11 +14,10 @@ func RunNodeJsCode(code string, preload string, options *runner_types.RunnerOpti
 		return types.ErrorResponse(-400, err.Error())
 	}
 
-	
 	if !static.GetDifySandboxGlobalConfigurations().EnablePreload {
-	    preload = ""
+		preload = ""
 	}
-	
+
 	timeout := time.Duration(
 		static.GetDifySandboxGlobalConfigurations().WorkerTimeout * int(time.Second),
 	)
@@ -49,4 +48,33 @@ func RunNodeJsCode(code string, preload string, options *runner_types.RunnerOpti
 			stderr_str += string(err)
 		}
 	}
+}
+
+func RunNodeJsCodeStream(code string, preload string, options *runner_types.RunnerOptions) (*RunCodeStreamResponse, error) {
+	if err := checkOptions(options); err != nil {
+		return nil, err
+	}
+
+	if !static.GetDifySandboxGlobalConfigurations().EnablePreload {
+		preload = ""
+	}
+
+	timeout := time.Duration(
+		static.GetDifySandboxGlobalConfigurations().WorkerTimeout * int(time.Second),
+	)
+
+	runner := nodejs.NodeJsRunner{}
+	stdout, stderr, done, err := runner.Run(code, timeout, nil, preload, options)
+	if err != nil {
+		close(done)
+		close(stdout)
+		close(stderr)
+		return nil, err
+	}
+
+	return &RunCodeStreamResponse{
+		Stdout: stdout,
+		Stderr: stderr,
+		Done:   done,
+	}, nil
 }

@@ -14,15 +14,21 @@ type RunCodeResponse struct {
 	Stdout string `json:"stdout"`
 }
 
+type RunCodeStreamResponse struct {
+	Stdout <-chan []byte
+	Stderr <-chan []byte
+	Done   <-chan bool
+}
+
 func RunPython3Code(code string, preload string, options *runner_types.RunnerOptions) *types.DifySandboxResponse {
 	if err := checkOptions(options); err != nil {
 		return types.ErrorResponse(-400, err.Error())
 	}
 
 	if !static.GetDifySandboxGlobalConfigurations().EnablePreload {
-	    preload = ""
+		preload = ""
 	}
-	
+
 	timeout := time.Duration(
 		static.GetDifySandboxGlobalConfigurations().WorkerTimeout * int(time.Second),
 	)
@@ -55,6 +61,37 @@ func RunPython3Code(code string, preload string, options *runner_types.RunnerOpt
 			stderr_str += string(err)
 		}
 	}
+}
+
+func RunPython3CodeStream(code string, preload string, options *runner_types.RunnerOptions) (*RunCodeStreamResponse, error) {
+	if err := checkOptions(options); err != nil {
+		return nil, err
+	}
+
+	if !static.GetDifySandboxGlobalConfigurations().EnablePreload {
+		preload = ""
+	}
+
+	timeout := time.Duration(
+		static.GetDifySandboxGlobalConfigurations().WorkerTimeout * int(time.Second),
+	)
+
+	runner := python.PythonRunner{}
+	stdout, stderr, done, err := runner.Run(
+		code, timeout, nil, preload, options,
+	)
+	if err != nil {
+		close(done)
+		close(stdout)
+		close(stderr)
+		return nil, err
+	}
+
+	return &RunCodeStreamResponse{
+		Stdout: stdout,
+		Stderr: stderr,
+		Done:   done,
+	}, nil
 }
 
 type ListDependenciesResponse struct {
